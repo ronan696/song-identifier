@@ -1,0 +1,9 @@
+requests
+asyncio
+pydantic
+python-dotenv
+scipy
+sounddevice
+shazamio
+python3-discogs-client
+musicbrainzngs
