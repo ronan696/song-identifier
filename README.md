@@ -16,7 +16,7 @@ Edit the `song_identifier.env` file with the required values before running the 
 
 ## Usage
 
-The below command should be run only once.
+The below command can be run to execute the script.
 
 ```bash
 python song_identifier.py
