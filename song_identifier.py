@@ -8,7 +8,7 @@ import requests
 import sounddevice as sd
 from discogs_client import Client
 from dotenv import load_dotenv
-from pydantic import BaseModel
+from pydantic import BaseModel, parse_obj_as
 from scipy.io.wavfile import write
 from shazamio import Shazam
 
@@ -18,10 +18,10 @@ load_dotenv(dotenv_path=os.path.join(extDataDir, "song_identifier.env"))
 APPLICATION_NAME = "SongIdentifier"
 APPLICATION_VERSION = "1.0"
 
-SAMPLE_RATE = int(os.getenv("SAMPLE_RATE", 44100))
-RECORDING_DURATION_SEC = int(os.getenv("RECORDING_DURATION_SEC", 10))
-NUMBER_OF_CHANNELS = int(os.getenv("NUMBER_OF_CHANNELS", 1))
+RECORDING_DURATION_SEC = int(os.getenv("RECORDING_DURATION_SEC", 20))
 DURATION_FORMAT = "%M:%S"
+DISPLAY_OUTPUT_DEVICES = parse_obj_as(bool, os.getenv("DISPLAY_OUTPUT_DEVICES", False))
+DEBUG = parse_obj_as(bool, os.getenv("DEBUG", False))
 
 CHUNK = 1024
 FORMAT = pyaudio.paInt16
@@ -56,27 +56,41 @@ class SongMetadata(BaseModel):
     isrc: str = ""
 
 
-def select_sound_device() -> int:
-    devices = sd.query_devices()
-
+def select_sound_device() -> dict:
+    devices = list(sd.query_devices())
+    valid_devices = []
     for device in devices:
-        print(f"{device['index'] + 1}: {device['name']}")
+        if DISPLAY_OUTPUT_DEVICES:
+            valid_devices.append(device['index'] + 1)
+            print(
+                f"{device['index'] + 1}: {device['name']}, Input Channels: {device['max_input_channels']}, "
+                f"Output Channels: {device['max_output_channels']}, Sample Rate: {device['default_samplerate']}"
+            )
+        else:
+            if device['max_input_channels'] > 0:
+                valid_devices.append(device['index'] + 1)
+                print(
+                        f"{device['index'] + 1}: {device['name']}, Input Channels: {device['max_input_channels']}, "
+                        f"Output Channels: {device['max_output_channels']}, Sample Rate: {device['default_samplerate']}"
+                    )
 
     device_number = int(input("Select the required device: "))
-    return device_number - 1
+    if device_number not in valid_devices:
+        raise Exception("Invalid device selected!")
+    return devices[device_number - 1]
 
 
-def listen_to_song_from_device(device: int) -> bytes:
+def listen_to_song_from_device(device: dict) -> bytes:
     print("Start Recording...")
     song = sd.rec(
-        int(RECORDING_DURATION_SEC * SAMPLE_RATE),
-        samplerate=SAMPLE_RATE,
-        channels=NUMBER_OF_CHANNELS,
-        device=device,
+        int(RECORDING_DURATION_SEC * device['default_samplerate']),
+        samplerate=device['default_samplerate'],
+        channels=device['max_input_channels'],
+        device=device['index'],
     )
     byte_io = io.BytesIO(bytes())
     sd.wait()  # Wait until recording is finished
-    write(byte_io, SAMPLE_RATE, song)  # Save binary data
+    write(byte_io, int(device['default_samplerate']), song)  # Save binary data
     result_bytes = byte_io.read()
     print("Song recorded!")
     return result_bytes
@@ -174,9 +188,9 @@ def log_song_for_radio_logik(song_metadata: SongMetadata):
 
 
 if __name__ == "__main__":
-    try:
-        device = select_sound_device()
-        while True:
+    while True:
+        try:
+            device = select_sound_device()
             song = listen_to_song_from_device(device)
             identified_song: IdentifiedSong = asyncio.run(identify_song(song))
             print(
@@ -189,9 +203,12 @@ if __name__ == "__main__":
             create_spin_for_song(song_metadata)
             log_song_for_radio_logik(song_metadata)
 
-            choice = input("Record Next Song [y/n]: ")
-            if choice.lower() != "y":
-                break
+        except Exception as e:
+            if DEBUG:
+                import traceback
+                print(traceback.format_exc())
+            print(f"An error occurred: {e}")
 
-    except Exception as e:
-        print(f"An error occurred: {e}")
+        choice = input("Record Next Song [y/n]: ")
+        if choice.lower() != "y":
+            break
