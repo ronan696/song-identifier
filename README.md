@@ -1,7 +1,5 @@
 # song-identifier
 
-Foobar is a Python library for dealing with word pluralization.
-
 ## Setup
 
 The below command should be run only once.
