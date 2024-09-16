@@ -3,7 +3,6 @@ import io
 import os
 
 import musicbrainzngs
-import pyaudio
 import requests
 import sounddevice as sd
 from discogs_client import Client
@@ -22,9 +21,6 @@ RECORDING_DURATION_SEC = int(os.getenv("RECORDING_DURATION_SEC", 20))
 DURATION_FORMAT = "%M:%S"
 DISPLAY_OUTPUT_DEVICES = parse_obj_as(bool, os.getenv("DISPLAY_OUTPUT_DEVICES", False))
 DEBUG = parse_obj_as(bool, os.getenv("DEBUG", False))
-
-CHUNK = 1024
-FORMAT = pyaudio.paInt16
 
 RADIO_LOGIK_METADATA_FILE_PATH = os.getenv("RADIO_LOGIK_METADATA_FILE_PATH")
 
@@ -49,8 +45,8 @@ class SongMetadata(BaseModel):
     title: str = ""
     artist: str = ""
     album: str = ""
-    duration: int = 0
-    year: int = 0
+    duration: str = ""
+    year: str = ""
     label: str = ""
     genre: str = ""
     isrc: str = ""
@@ -132,21 +128,21 @@ def get_song_metadata(title, artist="", isrc="") -> SongMetadata:
             tracklist = master.tracklist
             data = master.data
             # song_metadata.title = master.title
-            song_metadata.year = master.year
+            song_metadata.year = str(master.year)
             song_metadata.genre = ", ".join(master.genres)
             # song_metadata.artist = release.artists_sort
             if data.get("label"):
                 song_metadata.label = data.get("label")[0]
             if tracklist:
                 # song_metadata.duration = tracklist[0].duration
-                song_metadata.duration = sum(
+                song_metadata.duration = str(sum(
                     [
                         a * b
                         for a, b in zip(
                             [60, 1], map(int, tracklist[0].duration.split(":"))
                         )
                     ]
-                )
+                ))
             return song_metadata
         except Exception as e:
             print(
