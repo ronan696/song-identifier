@@ -7,3 +7,4 @@ sounddevice
 shazamio
 python3-discogs-client
 musicbrainzngs
+nicegui
